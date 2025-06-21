@@ -136,7 +136,6 @@
     </a>
 </div>
 
-<!-- Key Metrics Row -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="metric-card">
@@ -168,7 +167,6 @@
     </div>
 </div>
 
-<!-- Campaign Data Table -->
 <div class="card shadow card-custom">
     <div class="card-header bg-white">
         <h5 class="mb-0">
@@ -247,7 +245,6 @@
     </div>
 </div>
 
-<!-- AI Insights Section -->
 {% if spend_data|length > 0 %}
 <div class="ai-insights-box" id="ai-insights-container">
     <div class="ai-icon">
@@ -258,9 +255,9 @@
     </h4>
     
     <div id="ai-insights-content">
+        {# This block will be dynamically populated by JS or rendered by Jinja if insights are ready #}
         {% if ai_insights %}
             {% if ai_insights.success and ai_insights.status == 'processing' %}
-                <!-- Loading state -->
                 <div class="loading-insights" id="loading-state">
                     <div class="loading-spinner"></div>
                     <div class="insights-text pulse">
@@ -269,11 +266,9 @@
                     </div>
                 </div>
             {% elif ai_insights.success and ai_insights.analysis %}
-                <!-- Already completed analysis -->
                 <div class="insights-text text-center">
                     {{ ai_insights.analysis }}
                 </div>
-                
                 {% if ai_insights.metrics %}
                 <div class="row mt-3 text-center">
                     <div class="col-md-6">
@@ -323,14 +318,12 @@
                 </div>
                 {% endif %}
             {% else %}
-                <!-- Error state -->
                 <div class="insights-text text-center">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     {{ ai_insights.error if ai_insights.error else "Failed to generate AI insights." }}
                 </div>
             {% endif %}
         {% else %}
-            <!-- No AI insights available -->
             <div class="insights-text text-center">
                 <i class="fas fa-info-circle me-2"></i>
                 AI insights are not available. Please ensure Replicate API is configured properly.
@@ -340,7 +333,6 @@
 </div>
 {% endif %}
 
-<!-- Action Buttons -->
 <div class="row mt-4 mb-5">
     <div class="col-12 text-center">
         <button class="btn btn-primary me-2" onclick="window.print()">
@@ -364,57 +356,11 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // AI Insights polling functionality
-    {% if ai_insights and ai_insights.analysis_key and ai_insights.status == 'processing' %}
-    const analysisKey = "{{ ai_insights.analysis_key }}";
-    let pollAttempts = 0;
-    const maxPollAttempts = 30; // 30 attempts = 60 seconds with 2-second intervals
+    const aiInsightsContainer = document.getElementById('ai-insights-container');
+    const aiInsightsContentDiv = document.getElementById('ai-insights-content');
     
-    function pollForAIInsights() {
-        if (pollAttempts >= maxPollAttempts) {
-            // Timeout - show error message
-            const contentDiv = document.getElementById('ai-insights-content');
-            contentDiv.innerHTML = `
-                <div class="insights-text text-center">
-                    <i class="fas fa-clock me-2"></i>
-                    AI analysis is taking longer than expected. The insights may appear shortly, or you can refresh the page.
-                </div>
-            `;
-            return;
-        }
-        
-        pollAttempts++;
-        
-        fetch(`/get_ai_insights/${analysisKey}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.analysis) {
-                    // Analysis completed - update the content
-                    updateAIInsightsContent(data);
-                } else if (data.status === 'processing') {
-                    // Still processing - continue polling
-                    setTimeout(pollForAIInsights, 2000); // Poll every 2 seconds
-                } else {
-                    // Error occurred
-                    const contentDiv = document.getElementById('ai-insights-content');
-                    contentDiv.innerHTML = `
-                        <div class="insights-text text-center">
-                            <i class="fas fa-exclamation-circle me-2"></i>
-                            ${data.error || 'Failed to generate AI insights.'}
-                        </div>
-                    `;
-                }
-            })
-            .catch(error => {
-                console.error('Error polling for AI insights:', error);
-                // Continue polling on network errors
-                setTimeout(pollForAIInsights, 2000);
-            });
-    }
-    
-    function updateAIInsightsContent(data) {
-        const contentDiv = document.getElementById('ai-insights-content');
-        
+    // Function to render AI insights content
+    function renderAIInsights(data) {
         let metricsHtml = '';
         if (data.metrics) {
             const bestCampaign = data.metrics.best_campaign;
@@ -426,14 +372,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         <small class="text-muted">
                             <i class="fas fa-chart-line me-1"></i>
                             Best Performer: 
-                            ${bestCampaign ? `${bestCampaign.name.substring(0, 20)}... (${bestCampaign.ctr.toFixed(1)}% CTR)` : 'N/A'}
+                            ${bestCampaign && bestCampaign.name ? `${bestCampaign.name.substring(0, 20)}... (${bestCampaign.ctr.toFixed(1)}% CTR)` : 'N/A'}
                         </small>
                     </div>
                     <div class="col-md-6">
                         <small class="text-muted">
                             <i class="fas fa-exclamation-triangle me-1"></i>
                             Needs Attention: 
-                            ${worstCampaign ? `${worstCampaign.name.substring(0, 20)}... (${worstCampaign.ctr.toFixed(1)}% CTR)` : 'N/A'}
+                            ${worstCampaign && worstCampaign.name ? `${worstCampaign.name.substring(0, 20)}... (${worstCampaign.ctr.toFixed(1)}% CTR)` : 'N/A'}
                         </small>
                     </div>
                 </div>
@@ -460,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
         
-        contentDiv.innerHTML = `
+        aiInsightsContentDiv.innerHTML = `
             <div class="insights-text text-center">
                 ${data.analysis}
             </div>
@@ -468,17 +414,75 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Add entrance animation to the AI insights box
-        const aiInsights = document.getElementById('ai-insights-container');
-        aiInsights.style.transform = 'translateY(20px)';
-        aiInsights.style.transition = 'transform 0.6s ease';
-        setTimeout(() => {
-            aiInsights.style.transform = 'translateY(0)';
-        }, 100);
+        if (aiInsightsContainer) {
+            aiInsightsContainer.style.opacity = '0';
+            aiInsightsContainer.style.transform = 'translateY(20px)';
+            aiInsightsContainer.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            setTimeout(() => {
+                aiInsightsContainer.style.opacity = '1';
+                aiInsightsContainer.style.transform = 'translateY(0)';
+            }, 100);
+        }
     }
-    
-    // Start polling after a short delay
-    setTimeout(pollForAIInsights, 1000);
-    {% endif %}
+
+    // AI Insights polling functionality
+    {% if ai_insights and ai_insights.analysis_key and ai_insights.status == 'processing' %}
+        const analysisKey = "{{ ai_insights.analysis_key }}";
+        let pollAttempts = 0;
+        const maxPollAttempts = 30; // 30 attempts = 60 seconds with 2-second intervals
+        let pollingIntervalId;
+
+        function pollForAIInsights() {
+            if (pollAttempts >= maxPollAttempts) {
+                clearInterval(pollingIntervalId); // Stop polling
+                aiInsightsContentDiv.innerHTML = `
+                    <div class="insights-text text-center">
+                        <i class="fas fa-clock me-2"></i>
+                        AI analysis is taking longer than expected. The insights may appear shortly, or you can refresh the page.
+                    </div>
+                `;
+                return;
+            }
+            
+            pollAttempts++;
+            console.log(`Polling for AI insights... Attempt ${pollAttempts}`); // For debugging
+            
+            fetch(`/get_ai_insights/${analysisKey}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received AI insights data:', data); // For debugging
+                    if (data.success && data.analysis) {
+                        clearInterval(pollingIntervalId); // Stop polling once data is received
+                        renderAIInsights(data); // Render the insights
+                    } else if (data.status === 'processing') {
+                        // Still processing - continue polling (interval already set)
+                    } else {
+                        // Error occurred or unexpected state
+                        clearInterval(pollingIntervalId); // Stop polling
+                        aiInsightsContentDiv.innerHTML = `
+                            <div class="insights-text text-center">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                ${data.error || 'Failed to generate AI insights.'}
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling for AI insights:', error);
+                    // Decide whether to stop or continue polling on network errors
+                    // For now, we'll let it try again up to maxPollAttempts
+                });
+        }
+        
+        // Start polling after a short delay
+        pollingIntervalId = setInterval(pollForAIInsights, 2000);
+        
+    {% endif %} {# End of if ai_insights.status == 'processing' #}
     
     // Enhanced hover effects for metric cards
     const metricCards = document.querySelectorAll('.metric-card');
@@ -491,20 +495,6 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.transform = 'translateY(-5px) scale(1)';
         });
     });
-    
-    // Add entrance animation to AI insights if they exist and are already loaded
-    const aiInsights = document.getElementById('ai-insights-container');
-    if (aiInsights && !document.getElementById('loading-state')) {
-        // Only animate if not in loading state
-        aiInsights.style.opacity = '0';
-        aiInsights.style.transform = 'translateY(20px)';
-        aiInsights.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-        
-        setTimeout(() => {
-            aiInsights.style.opacity = '1';
-            aiInsights.style.transform = 'translateY(0)';
-        }, 500);
-    }
 });
 </script>
 {% endblock %}
